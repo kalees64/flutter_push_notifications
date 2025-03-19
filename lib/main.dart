@@ -1,9 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  NotificationService().initNotifications();
   runApp(App());
+}
+
+class NotificationService {
+  static final _notifications = FlutterLocalNotificationsPlugin();
+
+  void initNotifications() async {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initSettings =
+        InitializationSettings(android: androidSettings);
+
+    await _notifications.initialize(initSettings);
+
+    // Manually request permission for notifications (Android 13+)
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
+    }
+
+    print("Notification permission requested!");
+  }
+
+  void showNotification(String title, String body) async {
+    print("Trying to show notification: $title - $body");
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      'channel_id',
+      'WebSocket Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      ticker: 'ticker',
+    );
+
+    const NotificationDetails details =
+        NotificationDetails(android: androidDetails);
+
+    await _notifications.show(0, title, body, details);
+
+    print("Notification Triggered!");
+  }
 }
 
 class App extends StatefulWidget {
@@ -16,6 +65,7 @@ class App extends StatefulWidget {
 class _AppState extends State<App> {
   late WebSocketChannel _channel;
   String _message = "Waiting for notifications...";
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
@@ -32,6 +82,7 @@ class _AppState extends State<App> {
         (message) {
           print("Received: $message"); // Debugging log
           setState(() => _message = message);
+          _notificationService.showNotification("Notification", message);
         },
         onError: (error) {
           print("WebSocket Error: $error");
